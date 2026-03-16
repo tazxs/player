@@ -5,6 +5,7 @@ import usePlayerStore from '../store/playerStore';
 import db, { getVideosByCourse, getCourseProgress } from '../db/database';
 import Sidebar from '../components/Sidebar';
 import VideoPlayer from '../components/VideoPlayer';
+import ToastContainer from '../components/ToastContainer';
 
 export default function Player() {
   const { courseId } = useParams();
@@ -133,6 +134,9 @@ export default function Player() {
         </section>
 
       </main>
+
+      {/* Тосты */}
+      <ToastContainer />
     </div>
   );
 }

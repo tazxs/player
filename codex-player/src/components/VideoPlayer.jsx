@@ -1,7 +1,16 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import usePlayerStore from '../store/playerStore';
 import { saveProgress, getProgress } from '../db/database';
 import Controls from './Controls';
+
+// Вспомогательная функция для форматирования времени
+function formatTime(seconds) {
+  if (isNaN(seconds)) return '00:00';
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+}
 
 export default function VideoPlayer() {
   const videoRef = useRef(null);
@@ -16,6 +25,7 @@ export default function VideoPlayer() {
   const setCourseProgress = usePlayerStore((s) => s.setCourseProgress);
   const getNextVideo = usePlayerStore((s) => s.getNextVideo);
   const setCurrentVideo = usePlayerStore((s) => s.setCurrentVideo);
+  const addToast = usePlayerStore((s) => s.addToast);
 
   // Рефы для троттлинга сохранений
   const lastSavedTimeRef = useRef(0);
@@ -28,6 +38,12 @@ export default function VideoPlayer() {
   const [showControls, setShowControls] = useState(true);
   const hideControlsTimeoutRef = useRef(null);
 
+  // Стейты для Оверлея завершения
+  const [showEndOverlay, setShowEndOverlay] = useState(false);
+  const [countdown, setCountdown] = useState(3);
+  const countdownIntervalRef = useRef(null);
+  const nextVideo = getNextVideo();
+
   // Получаем максимальный просмотренный процент из стора (для зелёной полосы)
   const watchedPercent = usePlayerStore(
     (s) => s.progressMap[currentVideo?.id]?.watchedPercent || 0
@@ -36,7 +52,6 @@ export default function VideoPlayer() {
   // Получаем URL для текущего видео
   const videoUrl = currentVideo ? fileUrls[currentVideo.id] : null;
 
-  // ─── Обработка смены видео ────────────────────────────────────────────────
   useEffect(() => {
     if (!currentVideo || !videoUrl) {
       setIsValidUrl(false);
@@ -46,6 +61,11 @@ export default function VideoPlayer() {
     setIsValidUrl(true);
     isVideoLoadedRef.current = false;
     lastSavedTimeRef.current = 0;
+    setShowEndOverlay(false);
+
+    if (countdownIntervalRef.current) {
+      clearInterval(countdownIntervalRef.current);
+    }
 
     // Сброс состояния плеера при смене URL
     if (videoRef.current) {
@@ -74,7 +94,9 @@ export default function VideoPlayer() {
         !savedProgress.isCompleted
       ) {
         // Оставляем запас 2 секунды, чтобы юзер вспомнил контекст
-        videoRef.current.currentTime = Math.max(0, savedProgress.watchedSeconds - 2);
+        const timeToRestore = Math.max(0, savedProgress.watchedSeconds - 2);
+        videoRef.current.currentTime = timeToRestore;
+        addToast(`▶ Продолжаем с ${formatTime(timeToRestore)}`, 'info');
       }
     } catch (err) {
       console.error('[VideoPlayer] Ошибка получения прогресса:', err);
@@ -138,21 +160,42 @@ export default function VideoPlayer() {
     updateProgressEntry(currentVideo.id, entry);
     setIsPlaying(false);
 
-    // TODO: Здесь стоит обновить общий % курса (`courseProgress`),
-    // но для этого нужно пересчитать все completedCount.
-    // В идеале вызывать функцию вроде recalculateCourseProgress(),
-    // пока оставим как есть — общий прогресс пересчитается при рефреше страницы.
+    // 2. Показываем оверлей окончания
+    setShowEndOverlay(true);
+    setShowControls(true); // Форсируем показ курсора
 
-    // 2. Автопереход к следующему видео через 3 секунды
-    const nextVideo = getNextVideo();
+    // 3. Запускаем обратный отсчёт если есть следующее видео
     if (nextVideo) {
-      setTimeout(() => {
-        // Проверяем, не переключили ли видео вручную за эти 3 сек
-        const activeVideoId = usePlayerStore.getState().currentVideo?.id;
-        if (activeVideoId === currentVideo.id) {
-          setCurrentVideo(nextVideo);
-        }
-      }, 3000);
+      setCountdown(3);
+      countdownIntervalRef.current = setInterval(() => {
+        setCountdown((prev) => {
+          if (prev <= 1) {
+            clearInterval(countdownIntervalRef.current);
+            // Чтобы избежать stale state, берем nextVideoId из замыкания
+            setCurrentVideo(nextVideo);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+  };
+
+  const handleCancelCountdown = (e) => {
+    e.stopPropagation();
+    if (countdownIntervalRef.current) {
+      clearInterval(countdownIntervalRef.current);
+    }
+    setShowEndOverlay(false);
+  };
+
+  const handleSkipCountdown = (e) => {
+    e.stopPropagation();
+    if (countdownIntervalRef.current) {
+      clearInterval(countdownIntervalRef.current);
+    }
+    if (nextVideo) {
+      setCurrentVideo(nextVideo);
     }
   };
 
@@ -330,9 +373,9 @@ export default function VideoPlayer() {
         autoPlay // Авто-воспроизведение при смене серии
       />
 
-      {/* Контролы поверх видео с анимацией исчезновения */}
+      {/* Контролы поверх видео с анимацией исчезновения (скрыты когда активно финальное оверлей-меню) */}
       <div
-        className={`absolute inset-0 pointer-events-none transition-opacity duration-300 ${showControls ? 'opacity-100' : 'opacity-0'}`}
+        className={`absolute inset-0 pointer-events-none transition-opacity duration-300 ${!showEndOverlay && showControls ? 'opacity-100' : 'opacity-0'}`}
       >
         <div className="absolute bottom-0 w-full pointer-events-auto">
           <Controls
@@ -348,6 +391,69 @@ export default function VideoPlayer() {
           />
         </div>
       </div>
+
+      {/* Оверлей завершения урока */}
+      <AnimatePresence>
+        {showEndOverlay && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 bg-black/80 backdrop-blur-sm z-40 flex flex-col items-center justify-center pointer-events-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <motion.div
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              className="flex flex-col items-center text-center max-w-lg"
+            >
+              <div className="w-16 h-16 rounded-full bg-green-500/20 text-green-500 flex items-center justify-center mb-6 border border-green-500/30">
+                <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+
+              <h2 className="text-3xl font-bold text-white mb-2 font-syne">Урок завершён!</h2>
+              <p className="text-[var(--text-secondary)] mb-10 text-lg">
+                {currentVideo.title}
+              </p>
+
+              {nextVideo ? (
+                <>
+                  <div className="text-[var(--accent)] font-mono text-xl mb-3 flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full border-2 border-[var(--accent)] flex items-center justify-center animate-pulse">
+                      {countdown}
+                    </div>
+                    <span>Следующий урок...</span>
+                  </div>
+                  <p className="text-white text-lg font-medium mb-8">
+                    {nextVideo.title}
+                  </p>
+
+                  <div className="flex items-center gap-4">
+                    <button
+                      onClick={handleCancelCountdown}
+                      className="px-6 py-3 rounded-lg border border-[var(--border-strong)] text-[var(--text-secondary)] hover:text-white hover:bg-[var(--bg-elevated)] transition-colors font-medium tracking-wide"
+                    >
+                      ОТМЕНА
+                    </button>
+                    <button
+                      onClick={handleSkipCountdown}
+                      className="px-8 py-3 rounded-lg bg-[var(--accent)] text-black font-bold tracking-wider hover:brightness-110 hover:scale-105 transition-all shadow-[var(--shadow-glow)]"
+                    >
+                      СМОТРЕТЬ СЕЙЧАС
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <div className="mt-8 px-6 py-4 rounded-xl border border-[var(--accent-border)] bg-[var(--accent-bg)] text-[var(--accent)]">
+                  🎉 Вы завершили последний урок в этом курсе!
+                </div>
+              )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

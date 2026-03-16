@@ -22,6 +22,9 @@ const usePlayerStore = create((set, get) => ({
   // Карта объектных URL: { [videoId]: objectURL } — создаются через URL.createObjectURL(file)
   fileUrls: {},
 
+  // Тосты (уведомления)
+  toasts: [],
+
   // Статус воспроизведения
   isPlaying: false,
 
@@ -56,6 +59,24 @@ const usePlayerStore = create((set, get) => ({
 
   /** Установить агрегированный прогресс курса */
   setCourseProgress: (progress) => set({ courseProgress: progress }),
+
+  /** Добавить уведомление (toast) */
+  addToast: (message, type = 'info') => {
+    const id = Date.now().toString(36) + Math.random().toString(36).substring(2);
+    set((state) => ({
+      toasts: [...state.toasts, { id, message, type }]
+    }));
+    // Автоматически удаляем через 3 секунды
+    setTimeout(() => {
+      get().removeToast(id);
+    }, 3000);
+  },
+
+  /** Удалить уведомление по ID */
+  removeToast: (id) =>
+    set((state) => ({
+      toasts: state.toasts.filter((t) => t.id !== id)
+    })),
 
   /** Установить карту объектных URL (videoId -> objectURL) */
   setFileUrls: (urls) => set({ fileUrls: urls }),
