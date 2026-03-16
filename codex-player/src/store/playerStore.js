@@ -19,6 +19,9 @@ const usePlayerStore = create((set, get) => ({
   // Агрегированный прогресс курса (% завершённых уроков)
   courseProgress: null,
 
+  // Карта объектных URL: { [videoId]: objectURL } — создаются через URL.createObjectURL(file)
+  fileUrls: {},
+
   // Статус воспроизведения
   isPlaying: false,
 
@@ -53,6 +56,9 @@ const usePlayerStore = create((set, get) => ({
 
   /** Установить агрегированный прогресс курса */
   setCourseProgress: (progress) => set({ courseProgress: progress }),
+
+  /** Установить карту объектных URL (videoId -> objectURL) */
+  setFileUrls: (urls) => set({ fileUrls: urls }),
 
   /** Установить статус воспроизведения */
   setIsPlaying: (isPlaying) => set({ isPlaying }),
