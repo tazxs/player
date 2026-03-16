@@ -4,6 +4,7 @@ import { FileVideo } from 'lucide-react';
 import usePlayerStore from '../store/playerStore';
 import db, { getVideosByCourse, getCourseProgress } from '../db/database';
 import Sidebar from '../components/Sidebar';
+import VideoPlayer from '../components/VideoPlayer';
 
 export default function Player() {
   const { courseId } = useParams();
@@ -128,10 +129,7 @@ export default function Player() {
 
         {/* ПЛЕЕР (Правая колонка) */}
         <section className="flex-1 relative bg-black flex flex-col">
-          <div className="flex-1 flex items-center justify-center text-[#333] font-syne text-2xl tracking-widest">
-            {/* Временная заглушка плеера */}
-            [ ОБЛАСТЬ ВОСПРОИЗВЕДЕНИЯ ]
-          </div>
+          <VideoPlayer />
         </section>
 
       </main>
