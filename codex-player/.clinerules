@@ -1,0 +1,12 @@
+rules:
+  - "Always check browser console for errors after each step."
+  - "Do not implement backend logic. This is a strictly local offline app."
+  - "All UI text and comments must be in Russian."
+  - "Do not mock video playback. Use real HTML5 <video> elements with Blob/Object URLs."
+  - "Ensure strict adherence to the Cinema Dark design system."
+
+ignore_paths:
+  - node_modules/
+  - dist/
+  - "*.mp4"
+  - "*.log"

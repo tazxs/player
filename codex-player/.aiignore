@@ -1,0 +1,26 @@
+# Зависимости
+node_modules/
+.pnp/
+.pnp.js
+
+# Билды и кэш
+dist/
+build/
+
+# Lock-файлы
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Медиа и бинарные файлы (КРИТИЧНО для плеера!)
+*.mp4
+*.mkv
+*.avi
+*.png
+*.jpg
+*.svg
+
+# Env и логи
+.env
+.env.local
+*.log
